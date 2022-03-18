@@ -16,26 +16,23 @@ async fn main() -> io::Result<()> {
         }
     });
 
-    let mut buf = [0; 65536];
     println!("Listening at {}", listen_addr);
+    let addrd = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9898);
     loop {
+        let mut buf = [0; 65536];
         let (len, addr) = r.recv_from(&mut buf).await?;
-        let addrd = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9898);
         println!("{:?} bytes received from {:?}", len, addr);
         let s = match str::from_utf8(&buf) {
             Ok(v) => v,
             Err(_) => "",
         };
-        match &s[..5] {
-            "flood" => {
-                println!("A flood is received");
-                let flood_buf = [0xFFu8; 1024 * 5];
-                tx.send((buf[..len].to_vec(), addr)).await.unwrap();
-                for _ in 0..10 {
-                    tx.send(("flood".as_bytes().to_vec(), addrd)).await.unwrap();
-                }
-            },
-            _ => {},
+        if !s.is_empty() && len == 5 && &*(&s[..len]) == "flood" {
+            println!("A flood is received");
+            let flood_buf = [0xFFu8; 1024 * 5];
+            tx.send((buf[..len].to_vec(), addr)).await.unwrap();
+            for _ in 0..1 {
+                tx.send((flood_buf[..1024 * 5].to_vec(), addrd)).await.unwrap();
+            }
         }
     }
 }
