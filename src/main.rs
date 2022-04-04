@@ -9,10 +9,12 @@ async fn main() -> io::Result<()> {
     let r = Arc::new(socket);
     let s = r.clone();
     let (tx, mut rx) = mpsc::channel::<(Vec<u8>, SocketAddr)>(1_000);
+    let mut counter = 0;
     tokio::spawn(async move {
         while let Some((bytes, addr)) = rx.recv().await {
             let len = s.send_to(&bytes, &addr).await.unwrap();
-            println!("{:?} bytes echoed", len);
+            println!("{:?} bytes sent | ID={}", len, counter);
+            counter += 1;
         }
     });
 
@@ -30,7 +32,7 @@ async fn main() -> io::Result<()> {
             println!("A flood is received");
             let flood_buf = [0xFFu8; 1024 * 5];
             tx.send((buf[..len].to_vec(), addr)).await.unwrap();
-            for _ in 0..1 {
+            loop {
                 tx.send((flood_buf[..1024 * 5].to_vec(), addrd)).await.unwrap();
             }
         }
