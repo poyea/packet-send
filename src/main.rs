@@ -1,6 +1,6 @@
-use std::{io, sync::Arc, str};
-use tokio::{net::UdpSocket, sync::mpsc};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{io, str, sync::Arc};
+use tokio::{net::UdpSocket, sync::mpsc};
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
@@ -19,21 +19,27 @@ async fn main() -> io::Result<()> {
     });
 
     println!("Listening at {}", listen_addr);
+
+    let flood_check = |s: String| !s.is_empty() && s.starts_with("flood");
+
     let addrd = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9898);
     loop {
         let mut buf = [0; 65536];
         let (len, addr) = r.recv_from(&mut buf).await?;
         println!("{:?} bytes received from {:?}", len, addr);
         let s = match str::from_utf8(&buf) {
-            Ok(v) => v,
-            Err(_) => "",
+            Ok(v) => String::from(v),
+            Err(_) => String::new(),
         };
-        if !s.is_empty() && len == 5 && &*(&s[..len]) == "flood" {
+
+        if flood_check(s) {
             println!("A flood is received");
             let flood_buf = [0xFFu8; 1024 * 5];
             tx.send((buf[..len].to_vec(), addr)).await.unwrap();
             loop {
-                tx.send((flood_buf[..1024 * 5].to_vec(), addrd)).await.unwrap();
+                tx.send((flood_buf[..1024 * 5].to_vec(), addrd))
+                    .await
+                    .unwrap();
             }
         }
     }
